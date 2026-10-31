@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mapa de Atuação – USF Socialista</title>
+<link rel="stylesheet" href="vendor/leaflet.css">
+<link rel="stylesheet" href="vendor/leaflet-geoman.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<aside id="panel" aria-label="Painel de controle">
+  <header class="panel-head">
+    <div>
+      <h1>Mapa de Atuação</h1>
+      <p>USF Socialista · Porto Velho – RO</p>
+    </div>
+    <button id="btnClosePanel" class="icon-btn only-mobile" aria-label="Fechar painel">✕</button>
+  </header>
+  <div id="summary" class="summary"></div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="agentes" class="active">Agentes</button>
+    <button role="tab" data-tab="ruas">Ruas</button>
+    <button role="tab" data-tab="dados">Mapa e dados</button>
+  </nav>
+
+  <section id="tab-agentes" class="tab active">
+    <p class="help">Clique em um agente para selecioná-lo e use <b>Pintar</b> ou <b>Desenhar área</b> no mapa. O número ao lado do nome é a quantidade de casas dentro do bairro Socialista.</p>
+    <div id="agentList"></div>
+    <button id="btnAddAgent" class="btn wide">+ Adicionar agente</button>
+  </section>
+
+  <section id="tab-ruas" class="tab">
+    <input id="streetSearch" type="search" class="field" placeholder="Buscar rua…" aria-label="Buscar rua">
+    <div id="streetList"></div>
+  </section>
+
+  <section id="tab-dados" class="tab">
+    <h2>Camadas</h2>
+    <div id="layerToggles" class="toggles"></div>
+    <label class="slider">Opacidade das áreas <input id="opacity" type="range" min="0.05" max="0.9" step="0.05"></label>
+    <h2>Dados salvos neste navegador</h2>
+    <p class="help" id="storageInfo"></p>
+    <div class="btn-col">
+      <button id="btnBackup" class="btn">Baixar backup (.json)</button>
+      <button id="btnImport" class="btn">Restaurar backup…</button>
+      <input id="fileImport" type="file" accept=".json,application/json" hidden>
+      <button id="btnGeoJSON" class="btn">Exportar para SIG (.geojson)</button>
+      <button id="btnReset" class="btn danger">Voltar aos dados iniciais</button>
+    </div>
+    <h2>Origem dos dados</h2>
+    <ul class="sources">
+      <li><b>Bairros, ruas, escolas e unidades de saúde:</b> shapefiles da pasta do projeto.</li>
+      <li><b>Casas:</b> edificações detectadas por satélite (Overture Maps: Google, Microsoft e OpenStreetMap). Inclui comércios e outros prédios; confira em campo.</li>
+      <li><b>Áreas dos agentes:</b> traçadas do mapa da USF Socialista (UNIR, 2025). São aproximadas e podem ser ajustadas.</li>
+    </ul>
+  </section>
+</aside>
+
+<main id="stage">
+  <div id="map"></div>
+
+  <div id="toolbar" role="toolbar" aria-label="Ferramentas">
+    <button id="btnOpenPanel" class="tool only-mobile" aria-label="Abrir painel">☰</button>
+    <div class="seg" id="tools">
+      <button class="tool active" data-tool="select" title="Clique em algo para ver e editar">Selecionar</button>
+      <button class="tool" data-tool="paint" title="Clique para passar uma área ou casa para o agente selecionado">Pintar</button>
+      <button class="tool" data-tool="draw" title="Desenhe uma nova área ponto a ponto">Desenhar área</button>
+      <button class="tool" data-tool="house" title="Clique no mapa para marcar uma casa nova">Adicionar casa</button>
+    </div>
+    <div class="seg">
+      <button class="tool" id="btnUndo" title="Desfazer (Ctrl+Z)" disabled>Desfazer</button>
+    </div>
+    <div class="seg">
+      <button class="tool" id="btnFitSoc">Socialista</button>
+      <button class="tool" id="btnFitTerr">Território</button>
+      <button class="tool" id="btnFitCity">Porto Velho</button>
+    </div>
+    <div class="seg">
+      <button class="tool" id="btnClean" title="Esconde os controles para tirar print">Modo print</button>
+      <button class="tool primary" id="btnExport">Baixar mapa</button>
+    </div>
+  </div>
+
+  <div id="hint" hidden></div>
+  <div id="editBar" hidden>
+    <span>Arraste os pontos para ajustar a área.</span>
+    <button id="btnEditDone" class="btn primary">Concluir</button>
+    <button id="btnEditCancel" class="btn">Cancelar</button>
+  </div>
+
+  <div id="baseSwitch" role="group" aria-label="Tipo de mapa">
+    <button data-base="street" aria-label="Mapa de ruas"><span class="thumb thumb-street"></span><span>Mapa</span></button>
+    <button data-base="sat" aria-label="Satélite"><span class="thumb thumb-sat"></span><span>Satélite</span></button>
+  </div>
+
+  <div id="cleanTitle" hidden></div>
+  <div id="cleanLegend" hidden></div>
+  <button id="btnCleanExit" class="btn" hidden>Sair do modo print (Esc)</button>
+</main>
+
+<dialog id="exportDlg">
+  <form method="dialog" class="dlg-head">
+    <h2>Baixar mapa</h2>
+    <button class="icon-btn" aria-label="Fechar">✕</button>
+  </form>
+  <div class="dlg-body">
+    <div class="dlg-side">
+      <label>Título <input id="expTitle" class="field" maxlength="90"></label>
+      <label>Subtítulo <input id="expSub" class="field" maxlength="120"></label>
+      <label>Enquadramento
+        <select id="expFrame" class="field">
+          <option value="soc">Bairro Socialista</option>
+          <option value="terr">Território completo das equipes</option>
+          <option value="view">Vista atual do mapa</option>
+        </select>
+      </label>
+      <label>Página
+        <select id="expLayout" class="field">
+          <option value="land">Paisagem (A4)</option>
+          <option value="port">Retrato (A4)</option>
+        </select>
+      </label>
+      <label>Qualidade
+        <select id="expQ" class="field">
+          <option value="1">Normal</option>
+          <option value="2" selected>Alta (impressão)</option>
+        </select>
+      </label>
+      <label class="check"><input id="expLegend" type="checkbox" checked> Incluir legenda</label>
+      <button id="expRun" class="btn wide">Atualizar prévia</button>
+      <p id="expMsg" class="help" role="status"></p>
+      <div class="btn-col">
+        <button id="expPng" class="btn primary wide" disabled>Baixar PNG</button>
+        <button id="expPrint" class="btn wide" disabled>Imprimir / salvar PDF</button>
+      </div>
+    </div>
+    <div class="dlg-preview"><canvas id="expCanvas"></canvas></div>
+  </div>
+</dialog>
+
+<div id="toast" role="status" hidden></div>
+
+<script src="vendor/leaflet.js"></script>
+<script src="vendor/leaflet-geoman.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
